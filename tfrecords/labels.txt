@@ -1,0 +1,80 @@
+item {
+	id: 0
+	name: 'Subcutis'
+}
+item {
+	id: 1
+	name: 'Reticular Dermis'
+}
+item {
+	id: 2
+	name: 'Papillary Dermis'
+}
+item {
+	id: 3
+	name: 'Epidermis'
+}
+item {
+	id: 4
+	name: 'Stratum Corneum'
+}
+item {
+	id: 5
+	name: 'Hair follical'
+}
+item {
+	id: 6
+	name: 'Hair bulb'
+}
+item {
+	id: 7
+	name: 'Hair bulb basaloid'
+}
+item {
+	id: 8
+	name: 'Smooth muscle'
+}
+item {
+	id: 9
+	name: 'Sebaceous gland'
+}
+item {
+	id: 10
+	name: 'Eccrine gland'
+}
+item {
+	id: 11
+	name: 'Apocrine gland'
+}
+item {
+	id: 12
+	name: 'Blood vessel'
+}
+item {
+	id: 13
+	name: 'Melanocytes'
+}
+item {
+	id: 14
+	name: 'Nevomelanocytes'
+}
+item {
+	id: 15
+	name: 'Langerhans cells'
+}
+item {
+	id: 16
+	name: 'Inflammatory cell'
+}
+item {
+	id: 17
+	name: 'Fibroblasts'
+}
+item {
+	id: 18
+	name: 'Nerve'
+}
+item {
+	id: 19
+	name: 'Lymphatic'
+}
