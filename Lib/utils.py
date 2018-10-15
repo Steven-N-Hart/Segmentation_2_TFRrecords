@@ -39,7 +39,7 @@ def parse_color_df(filepath):
         rgb_set = []
         csv_reader = csv.reader(f, delimiter=',')
         line_count = []
-        line_num = 0
+        line_num = 1  # Start at 1 so background is 0
         for line in csv_reader:
             if line[0].startswith('#') or line[0] == 'id':
                 continue
@@ -55,25 +55,51 @@ def parse_color_df(filepath):
 ###############################################################################
 
 
-def single_to_multimask(pairs, mask):
-    mask_list = []
+# def single_to_multimask(pairs, mask):
+#     mask_list = []
+#     binary_list = []
+#     for group in pairs:
+#         index, term, c = group
+#         within_box = np.logical_and(
+#                 mask[..., 0] == c[0],
+#                 mask[..., 1] == c[1],
+#                 mask[..., 2] == c[2],
+#         ).astype(uint8)
+#         mask_list.append(within_box)
+#         binary_list.append(within_box.max())
+#         if within_box.max() > 0:
+#             logging.debug('\t\t\t\tFound {} pixels for {}'.format(within_box.sum()/mask.size, term))
+#             global pixel_counter
+#             global patch_counter
+#             pixel_counter[term] += within_box.sum()
+#             patch_counter[term] += 1
+#     return mask_list, binary_list
+
+def dense_label_mask(pairs, sub_mask):
+    dense_np = np.zeros((sub_mask.shape[0], sub_mask.shape[1])).astype(np.uint8)
     binary_list = []
     for group in pairs:
         index, term, c = group
-        within_box = np.logical_and(
-                mask[..., 0] == c[0],
-                mask[..., 1] == c[1],
-                mask[..., 2] == c[2],
-        ).astype(int)
-        mask_list.append(within_box)
-        binary_list.append(within_box.max())
-        if within_box.max() > 0:
-            logging.debug('\t\t\t\tFound {} pixels for {}'.format(within_box.sum()/mask.size, term))
+
+        idx = np.all(sub_mask == np.array(c).reshape(1, 1, 3), axis=2)
+        dense_np[idx] = index
+
+        total = 0
+        total = idx.sum()
+        binary_list.append(total)
+        if total > 0:
             global pixel_counter
             global patch_counter
-            pixel_counter[term] += within_box.sum()
+            pixel_counter[term] += total
             patch_counter[term] += 1
-    return mask_list, binary_list
+            logging.debug('\t\t\t\tFound {}({}%) pixels for group: {}'.format(total,
+                                                                              round(
+                                                                                  (total / (sub_mask.size / 3)) * 100,
+                                                                                  1),
+                                                                              group))
+    # if sum(binary_list) > 0:
+    #    logging.debug('binary list:\t{}'.format(binary_list))
+    return dense_np, binary_list
 
 
 def get_patches(mask, image, patch_size, overlap, pairs):
@@ -106,22 +132,29 @@ def get_patches(mask, image, patch_size, overlap, pairs):
             sub_mask = np_mask[x:x + patch_size, y:y + patch_size, 0:3]
             logging.debug('#####################')
             logging.debug('x: {}\ty:{}'.format(x, y))
+
             # Reclassify the mask into a list of binary encoded PNGs
-            mask_pngs, binary_list = single_to_multimask(pairs, sub_mask)
-
-            # If there is no information, skip
-            if sum(binary_list) == 0:
-                next
-
+            #mask_pngs, binary_list = single_to_multimask(pairs, sub_mask)
             sub_img = np_img[x:x + patch_size, y:y + patch_size, 0:3]
+
+            # Get a single mask
+            mask_png, binary_list = dense_label_mask(pairs, sub_mask)
+
+            # Color background 0
+            # blank_background = np.asarray(Image.fromarray(sub_img).convert('L')) > 240
+            #mask_png[blank_background] = 0
             results = dict()
             results['sub_image'] = Image.fromarray(sub_img)
-            results['sub_masks'] = mask_pngs
+            results['sub_mask'] = Image.fromarray(mask_png)
             results['x'] = x
             results['y'] = y
             results['binary_list'] = binary_list
             y = int(y + patch_size - (patch_size * overlap))
-            yield results
+            # If there is no information, skip
+
+            if sum(binary_list) > 0:
+                yield results
+
         x = int(x + patch_size - (patch_size * overlap))
         y = 0
 
@@ -134,10 +167,15 @@ def get_patches(mask, image, patch_size, overlap, pairs):
     pp.pprint(patch_counter)
 
 
-def code_tfrecords(project_id, image_id, x, y, patch_size, sub_img, sub_masks, binary_list):
+def code_tfrecords(project_id, image_id, x, y, patch_size, sub_img, sub_mask, binary_list):
     imgbytearr = io.BytesIO()
     sub_img.save(imgbytearr, format='PNG')
     sub_img = imgbytearr.getvalue()
+
+    imgbytearr = io.BytesIO()
+    sub_mask.save(imgbytearr, format='PNG')
+    sub_mask = imgbytearr.getvalue()
+
 
     feature_dict = {
         'image/height': dataset_util.int64_feature(patch_size),
@@ -147,16 +185,17 @@ def code_tfrecords(project_id, image_id, x, y, patch_size, sub_img, sub_masks, b
         'image/project': dataset_util.bytes_feature(project_id.encode('utf8')),
         'image/source': dataset_util.bytes_feature(image_id.encode('utf8')),
         'image/encoded': dataset_util.bytes_feature(sub_img),
-        'image/masks/found': dataset_util.int64_list_feature(binary_list)  # Shows whether or not a feature is encoded
+        'image/masks/found': dataset_util.int64_list_feature(binary_list),  # Shows whether or not a feature is encoded
+        'image/mask/encoded': dataset_util.bytes_feature(sub_mask)
     }
 
-    encoded_mask_png_list = []
-    for m in sub_masks:
-        img = Image.fromarray(m)
-        output = io.BytesIO()
-        img.save(output, format='PNG')
-        encoded_mask_png_list.append(output.getvalue())
-    feature_dict['image/masks'] = (dataset_util.bytes_list_feature(encoded_mask_png_list))
+    # encoded_mask_png_list = []
+    # for m in sub_masks:
+    #    img = Image.fromarray(m)
+    #    output = io.BytesIO()
+    #    img.save(output, format='PNG')
+    #    encoded_mask_png_list.append(output.getvalue())
+    #feature_dict['image/masks'] = (dataset_util.bytes_list_feature(encoded_mask_png_list))
 
     example = tf.train.Example(features=tf.train.Features(feature=feature_dict)).SerializeToString()
 

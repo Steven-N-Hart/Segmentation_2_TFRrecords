@@ -9,7 +9,7 @@ from Lib.write_labels import write_labels
 from Lib.utils import parse_color_df, get_patches, code_tfrecords
 import logging
 import argparse
-
+from skimage.filters import threshold_otsu
 
 ###############################################################################
 # Input Arguments
@@ -18,10 +18,10 @@ import argparse
 parser = argparse.ArgumentParser(description='Extract patches from image and masks')
 parser.add_argument("-i", "--image_dir", dest='image_dir', required=True, help="Path to image files (must end in ["
                                                                                "_img.|_mask].png)")
-parser.add_argument("-o", "--output_dir", dest='out_dir', default='tfrecords', help="Output file "
+parser.add_argument("-o", "--output_dir", dest='out_dir', default='tfrecords2', help="Output file "
                                                                                                    "directory")
 parser.add_argument("-t", "--tf_prefix", dest='tfrecord_prefix', help="Prefix for TFRecords files", default='skin')
-parser.add_argument("-p", "--patch_size", dest='patch_size', help="Patch size", default=256, type=int)
+parser.add_argument("-p", "--patch_size", dest='patch_size', help="Patch size", default=500, type=int)
 parser.add_argument("-f", "--fraction_overlap", dest='overlap', help="Patch size overlap amount", default=0.1, type=float)
 parser.add_argument("-c", "--color_config", dest='color_config', required=True, help="Tab separated file of colors "
                                                                                      "for mask")
@@ -57,8 +57,15 @@ Image.MAX_IMAGE_PIXELS = None
 # Initial configuration
 ###############################################################################
 
+training_img_path = os.path.join(outdir, 'image')
+training_mask_path = os.path.join(outdir, 'mask')
+
 if not os.path.exists(outdir):
     os.mkdir(outdir)
+
+if not os.path.exists(training_img_path):
+    os.mkdir(training_img_path)
+    os.mkdir(training_mask_path)
 
 if os.path.exists(label_map_name):
     os.remove(label_map_name)
@@ -67,13 +74,14 @@ if os.path.exists(label_map_name):
 # Main
 ###############################################################################
 
-training_writer = tf.python_io.TFRecordWriter(os.path.join(outdir, tfrecord_prefix + '_' + 'train.tfrecords'))
-validation_writer = tf.python_io.TFRecordWriter(os.path.join(outdir, tfrecord_prefix + '_' + 'validation.tfrecords'))
-test_writer = tf.python_io.TFRecordWriter(os.path.join(outdir, tfrecord_prefix + '_' + 'test.tfrecords'))
+# training_writer = tf.python_io.TFRecordWriter(os.path.join(outdir, tfrecord_prefix + '_' + 'train.tfrecords'))
+# validation_writer = tf.python_io.TFRecordWriter(os.path.join(outdir, tfrecord_prefix + '_' + 'validation.tfrecords'))
+# test_writer = tf.python_io.TFRecordWriter(os.path.join(outdir, tfrecord_prefix + '_' + 'test.tfrecords'))
 
 if __name__ == '__main__':
     for image_path in image_files:
         project_id, image_id, _ = os.path.basename(image_path).split('_', 2)
+        #image_path = image_path.replace('_img.png', '_img.jpg')
         mask_path = image_path.replace('_img.png', '_mask.png')
 
         # Check that both files exist
@@ -91,20 +99,22 @@ if __name__ == '__main__':
         results = get_patches(mask, image, patch_size, overlap, pairs)
         logging.debug('Done with results for image: {}'.format(image_id))
         for r in results:
-            record = code_tfrecords(project_id, image_id, r['x'], r['y'], patch_size, r['sub_image'], r['sub_masks'],
+            record = code_tfrecords(project_id, image_id, r['x'], r['y'], patch_size, r['sub_image'], r['sub_mask'],
                                     r['binary_list'])
-            # Randomly assign into training, validation, and testing
-            random_number = np.random.random()
-            if random_number < 0.7:
-                # print into training
-                training_writer.write(record)
-            elif random_number < 0.9:
-                # print into validation
-                validation_writer.write(record)
-            else:
-                # print into test
-                test_writer.write(record)
 
-    training_writer.close()
-    validation_writer.close()
-    test_writer.close()
+            # Skip blank images
+            bw = np.asarray(r['sub_image'].convert('L'))
+            thresh = threshold_otsu(bw)
+            if thresh > 230:
+                break
+
+            # print into training
+            # training_writer.write(record)
+            r['sub_image'].save(os.path.join(training_img_path, str(project_id) + '_' + str(
+                image_id) + '_' + str(r['x']) + '_' + str(r['y']) + '_' + str(patch_size) + '.jpg'))
+            r['sub_mask'].save(os.path.join(training_mask_path, str(project_id) + '_' + str(
+                image_id) + '_' + str(r['x']) + '_' + str(r['y']) + '_' + str(patch_size) + '.png'))
+
+    # training_writer.close()
+    # validation_writer.close()
+    #test_writer.close()

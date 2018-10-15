@@ -1,14 +1,10 @@
 item {
-	id: 0
+	id: 1
 	name: 'Subcutis'
 }
 item {
-	id: 1
-	name: 'Reticular Dermis'
-}
-item {
 	id: 2
-	name: 'Papillary Dermis'
+	name: 'Reticular Dermis'
 }
 item {
 	id: 3
@@ -24,57 +20,17 @@ item {
 }
 item {
 	id: 6
-	name: 'Hair bulb'
-}
-item {
-	id: 7
-	name: 'Hair bulb basaloid'
-}
-item {
-	id: 8
 	name: 'Smooth muscle'
 }
 item {
-	id: 9
-	name: 'Sebaceous gland'
-}
-item {
-	id: 10
+	id: 7
 	name: 'Eccrine gland'
 }
 item {
-	id: 11
-	name: 'Apocrine gland'
-}
-item {
-	id: 12
+	id: 8
 	name: 'Blood vessel'
 }
 item {
-	id: 13
-	name: 'Melanocytes'
-}
-item {
-	id: 14
-	name: 'Nevomelanocytes'
-}
-item {
-	id: 15
-	name: 'Langerhans cells'
-}
-item {
-	id: 16
-	name: 'Inflammatory cell'
-}
-item {
-	id: 17
-	name: 'Fibroblasts'
-}
-item {
-	id: 18
+	id: 9
 	name: 'Nerve'
-}
-item {
-	id: 19
-	name: 'Lymphatic'
 }
